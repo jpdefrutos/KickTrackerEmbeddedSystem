@@ -1,15 +1,15 @@
 #include "Communications.h"
 
 
-Communications::Communicator(string ssid, string psw, string ip, int port)
+Communicator::Communicator(String ssid, String psw, String ip, int port)
 {
     // ssid, psw, ip, port should be saved in a config file and read upon power up
     std::cout << "Connecting to " << ssid ;
-    int retries = 3
+    int retries = 3;
     do
     {
         std::cout << ".";
-        mStatus = WiFi.begin(ssid, psw);
+        mStatus = WiFi.begin(ssid.c_str(), psw.c_str());
         delay(5000);
         retries--;/* code */
     } while (mStatus != WL_CONNECTED && retries);
@@ -26,13 +26,13 @@ Communications::Communicator(string ssid, string psw, string ip, int port)
 }
 
 
-void setQueue(queue* queue)
+void Communicator::setQueue(std::queue<String>* queue)
 {
     mQueue = queue;
 }
 
 
-void Communications::openServer(string ip, int port);
+void Communicator::openServer(String ip, int port)
 {
     mServer.begin();
     WiFi.config(ip);
@@ -43,12 +43,12 @@ void Communications::openServer(string ip, int port);
     std::cout << "\tSignal strength: " << WiFi.RSSI() << " dB" << std::endl;
 }
 
-void Communications::handleServer()
+void Communicator::handleServer()
 {
     mRunServer = true;
     WiFiClient client;
-    string receivedMessage;
-    string parsedData;
+    String receivedMessage;
+    String parsedData;
     
     std::cout << "Running server" << std::endl;
     while(mRunServer)
@@ -83,7 +83,7 @@ void Communications::handleServer()
 
 }
 
-void Communications::sendDataLoop()
+void Communicator::sendDataLoop()
 {
     mCollectingDataFlag = true;
     while(!mQueue.empty() && !mCollectingDataFlag)
@@ -93,22 +93,22 @@ void Communications::sendDataLoop()
     }
 }
 
-string Communications::readMessage(WiFiClient client)
+String Communicator::readMessage(WiFiClient client)
 {
     return client.read();
 };
 
-string Communications::parseData(std::vector<int32_t> &dataVector)
+String Communicator::parseData(std::vector<int32_t> &dataVector)
 {
 
 }
 
-int Communications::sendMessage(string message)
+int Communicator::sendMessage(String message)
 {
     return mServer.write(message.c_str());
 };
 
-int Communications::sendDataOnQueue(string dataLocation, int numberSamples)
+int Communicator::sendDataOnQueue(String dataLocation, int numberSamples)
 {
     for(size_t i=0; i < numberSamples; i++)
     {
@@ -116,24 +116,24 @@ int Communications::sendDataOnQueue(string dataLocation, int numberSamples)
     }
 }
 
-int Communications::getStatus()
+int Communicator::getStatus()
 {
     mStatus = WiFi.status();
     return mStatus;
 }
 
-void Communications::stopServer()
+void Communicator::stopServer()
 {
     mRunServer = false;
     std::cout << "Stopping server" << std::endl;
 }
 
-void Communications::updataDataCollectionFlag(bool newStatus)
+void Communicator::updataDataCollectionFlag(bool newStatus)
 {
     mCollectingDataFlag = newStatus;
 }
 
-void Communications::parseMessage(string message)
+void Communicator::parseMessage(String message)
 {
 
 }

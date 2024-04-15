@@ -3,7 +3,13 @@
 #define _SENSORMANAGER_H_
 
 #include <Wire.h>
-#include <ArduinoSTL.h>
+#ifdef ARDUINO_NANO_ESP32
+	#include <vector>
+	#include <string>
+	#include <iostream>
+#else
+	#include <ArduinoSTL.h>
+#endif
 #include "Logger.h"
 
 #define CLASSNAME "SensorManager"
@@ -12,7 +18,7 @@
 class SensorManager
 {
 public:
-	SensorManager(int address, int bufferSize);
+	SensorManager(int address, int bufferSize = 32);
 	void powerUpSensor(const int regAddress, const int value);
 	virtual int readSensor(std::vector<int32_t> *readValue);
 	void continuousReading(int durationMs, float freqHz);

@@ -12,7 +12,7 @@ Logger::Logger()
 Logger::~Logger()
 {};
 
-void Logger::beginSerial(int br = 9600)
+void Logger::beginSerial(int br)
 {
     Serial.begin(br);
 };

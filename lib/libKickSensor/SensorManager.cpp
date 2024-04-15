@@ -4,7 +4,7 @@
 #include "tools.h"
 
 
-SensorManager::SensorManager(int address, int bufferSize = 32)
+SensorManager::SensorManager(int address, int bufferSize)
 {
 	setAddress(address);
 	mBufferSize = bufferSize;

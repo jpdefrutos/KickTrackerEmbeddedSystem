@@ -1,6 +1,12 @@
 #include <Arduino.h>
 #include <libKickSensor.h>
-#include <ArduinoSTL.h>
+#ifdef ARDUINO_NANO_ESP32
+	#include <vector>
+	#include <string>
+	#include <iostream>
+#else
+	#include <ArduinoSTL.h>
+#endif
 
 ////////////DEBUG////////////
 // #include "avr8-stub.h"
@@ -38,7 +44,7 @@ void loop()
         std::cout << lastData->at(i) << ' ';
     }
     std::cout << std::endl;
-    delay(2000);
+    // delay(2000);
     std::cout << "Here comes!" << std::endl;
     //sensor.continuousReading(5000, 10);
 

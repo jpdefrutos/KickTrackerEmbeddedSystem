@@ -1,7 +1,14 @@
 #ifndef _ACCELSENSOR_H_
 #define _ACCELSENSOR_H_
 
-#include <ArduinoSTL.h>
+
+#ifdef ARDUINO_NANO_ESP32
+	#include <vector>
+	#include <string>
+	#include <iostream>
+#else
+	#include <ArduinoSTL.h>
+#endif
 #include <Streaming.h>
 #include "SensorManager.h"
 

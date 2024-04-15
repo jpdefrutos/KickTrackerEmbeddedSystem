@@ -1,6 +1,10 @@
 #include <Arduino.h>
-#include <ArduinoSTL.h>
-
+#ifdef ARDUINO_NANO_ESP32
+	#include <vector>
+	#include <string>
+#else
+	#include <ArduinoSTL.h>
+#endif
 #ifndef _TOOLS_
 #define _TOOLS_    
 

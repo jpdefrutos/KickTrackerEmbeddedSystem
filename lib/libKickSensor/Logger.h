@@ -1,7 +1,13 @@
 #include <stdlib.h>
 #include <Arduino.h>
 #include <time.h>
-#include <ArduinoSTL.h>
+#ifdef ARDUINO_NANO_ESP32
+	#include <vector>
+	#include <string>
+	#include <iostream>
+#else
+	#include <ArduinoSTL.h>
+#endif
 
 #ifndef _LOGGER_H_
 #define _LOGGER_H_
