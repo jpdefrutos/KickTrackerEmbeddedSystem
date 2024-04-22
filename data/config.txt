@@ -1,0 +1,3 @@
+WIFI_SSID: KickSensorWiFi
+PASSWORD: KickSensorPassword
+PORT: 80
