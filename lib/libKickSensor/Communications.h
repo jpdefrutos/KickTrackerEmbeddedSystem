@@ -7,41 +7,65 @@
 	#include <ArduinoSTL.h>
 #endif
 #include <WiFi.h>
+#include <WiFiClient.h>
+#include <WiFiAP.h>
 #include <SPI.h>
+#include "constants.h"
 
-typedef struct Task
+
+#define WIFI_SSID "KickSensorWiFi"
+#define WIFI_PSW "KickSensorLibrary"
+
+enum TASK_ID
 {
-    char taskID;
-    int* numParams;
-    String* strParams;
+    START_ACQUISITION,
+    STOP_ACQUISITION,
+    TIMED_ACQUISITION,
+    GET_CONFIGURATION,
+    UPDATE_CONFIGURATION,
+    POWER_OFF,
+    ALIVE,
 };
 
+
+struct Task
+{
+    TASK_ID taskID;
+    int numParams;
+    String* strParams[5];
+    String raw;
+};
 
 class Communicator
 {
 public:
-    Communicator(String ssid, String psw, String ip, int port);
-    void openServer(String ip, int port);
-    String readMessage(WiFiClient client);
+    Communicator(String ssid, String pwd, int port);
+    void setupWiFiNetwork(String ssid, String pwd);
+    void openServer(int port);
+    Task readMessage(WiFiClient client);
     int sendMessage(String message);
+    void sendACK();
     int getStatus();
-    String parseData(std::vector<int32_t> &dataVector);
-    void setQueue(std::queue<String>* queue);
+    String formatSensorData(std::vector<int32_t> &dataVector);
+    void setQueue(std::queue<std::vector<int32_t>>* queue);
     void handleServer();
     void setDataLoop();
-    void sendDataQueue(String dataLocation, int numberSamples);
+    int sendDataOnQueue(String dataLocation, int numberSamples);
     void stopServer();
     void updateDataCollectionFlag(bool newStatus);
     void parseMessage(String message);
+    void parseParametersString(String rawString, Task &taskInformation);
+    void updataDataCollectionFlag(bool newStatus);
 
 private:
     const int mBufferSize = 32;
     const int mMaxRetry = 100;
 
-    std::queue<String>* mQueue;
-    std::queue<int> mTasksQueue;
+    std::queue<std::vector<int32_t>>* mQueue;
+    std::queue<Task> mTasksQueue;
     int mStatus = WL_IDLE_STATUS;
     bool mCollectingDataFlag = false;
     bool mRunServer = false;
-    WiFiServer mServer(0);
+    bool mNetwork = false;
+    WiFiServer* mServer;  // Default port is 80
 };
