@@ -6,3 +6,11 @@
 .idea
 .vs
 *.xml
+obj/ARM/Debug/embeddedSystem.log
+obj/ARM/Debug/embeddedSystem.tlog/embeddedSystem.lastbuildstate
+obj/ARM/Debug/embeddedSystem.tlog/unsuccessfulbuild
+.vscode/extensions.json
+.vscode/settings.json
+.vscode/tasks.json
+__vm/.embeddedSystem.vsarduino.h
+embeddedSystem.code-workspace
