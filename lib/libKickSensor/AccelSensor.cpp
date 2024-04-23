@@ -8,12 +8,12 @@ AccelSensor::AccelSensor(int address, int bufferSize) : SensorManager(address, b
     mSensor = new Adafruit_MMA8451();
     while(!mSensor->begin())
     {
-        std::cout << "Initializing accelerometer..." << std::endl;
+        Serial.println("Initializing accelerometer...");
     }
     mSensor->setRange(MMA8451_RANGE_8_G);
     mSensor->setDataRate(MMA8451_DATARATE_800_HZ);
     mma8451_range_t range = mSensor->getRange();
-    std::cout << "[DEB] Sensor active (" << range << " G)" << std::endl;
+    Serial.printf("[DEB] Sensor active (%d G)\n", range);
     
     mSensorBufferSize = bufferSize;
     std::vector<int32_t> _buffer(mSensorBufferSize, 0);
@@ -50,11 +50,11 @@ String AccelSensor::formatDataStream(const std::vector<int32_t>* dataStream)
         {
             stringData += stringData + dataStream->at(i) + ";";
         } 
-        std::cout << "Converted stream: " << stringData << std::endl;
+        Serial.printf("Converted stream: %s\n", stringData);
     }
     else
     {
-        std::cout << "[ERR] Stream is empty" << std::endl;
+        Serial.println("[ERR] Stream is empty");
     }
     return stringData;
 }

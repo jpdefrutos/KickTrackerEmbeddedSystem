@@ -22,7 +22,7 @@ void Logger::logEvent(LOGSEV sev, const char* className, const char* methodName,
     va_list strValues;
 
     sprintf(LOGBUFFER, "%u [%s] %s::%s\t%s", millis(), getSeverityString(sev), className, methodName, message);
-    std::cout << millis() << "\t[" << getSeverityString(sev) << "]\t" << className << "::" << methodName << "\t" << message << std::endl; 
+    Serial.println(LOGBUFFER); 
 };
 
 char* Logger::getSeverityString(LOGSEV sev)

@@ -1,7 +1,6 @@
 #ifdef ARDUINO_NANO_ESP32
 	#include <vector>
 	#include <string>
-	#include <iostream>
     #include <queue>
 #else
 	#include <ArduinoSTL.h>
@@ -12,9 +11,6 @@
 #include <SPI.h>
 #include "constants.h"
 
-
-#define WIFI_SSID "KickSensorWiFi"
-#define WIFI_PSW "KickSensorLibrary"
 
 enum TASK_ID
 {

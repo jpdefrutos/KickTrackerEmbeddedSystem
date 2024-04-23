@@ -34,7 +34,7 @@ int GyroSensor::readSensor(std::vector<int32_t> *returnValue)
             // 5     0x45 and 0x46 -> GYRO_YOUT_H and GYRO_YOUT_L
             // 6     0x47 and 0x48 -> GYRO_ZOUT_H and GYRO_ZOUT_L
             buffer = Wire.read() << 8 | Wire.read();
-            std::cout << "ACC " << buffer << std::endl;
+            Serial.printf("ACC %d\n", buffer);
             if(i==3) // Temperature
             {
                 returnValue->push_back(buffer / 340.00 + 36.53); //from the documentation [MPU-6000/MPU-6050 Register Map and Description, p.30]
@@ -62,11 +62,11 @@ String GyroSensor::formatDataStream(const std::vector<int32_t>* dataStream)
         {
             stringData += stringData + dataStream->at(i) + ";";
         } 
-        std::cout << "Converted stream: " << stringData << std::endl;
+        Serial.printf("Converted stream: %s\n", stringData);
     }
     else
     {
-        std::cout << "[ERR] Stream is empty" << std::endl;
+        Serial.printf("[ERR] Stream is empty");
     }
     return stringData;
 }

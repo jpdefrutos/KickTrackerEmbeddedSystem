@@ -5,7 +5,7 @@ Communicator::Communicator(String ssid, String pwd, int port)
 {
     digitalWrite(LED_BUILTIN, LOW);
     // ssid, psw, ip, port should be saved in a config file and read upon power up
-    std::cout << "Setting up network" << ssid ;
+    Serial.printf("Setting up network: %s", ssid);
     setupWiFiNetwork(ssid, pwd);
     openServer(port);
     // int retries = 3;
@@ -46,9 +46,9 @@ void Communicator::setQueue(std::queue<std::vector<int32_t>>* queue)
 void Communicator::setupWiFiNetwork(String ssid, String pwd)
 {
     WiFi.softAP(ssid);  // Add WIFI_PSW if needed
-    std::cout << "Created network " << ssid << std::endl;
-    std::cout << "IP: " << WiFi.softAPIP() << std::endl;
-    std::cout << "Signal strength: " << WiFi.RSSI() << " dB" << std::endl;
+    Serial.printf("Created network %s\n", ssid);
+    Serial.printf("IP: %s\n", WiFi.softAPIP());
+    Serial.printf("Signal strength: %d dB\n", WiFi.RSSI());
     mNetwork = true;
 }
 
@@ -56,14 +56,14 @@ void Communicator::openServer(int port)
 {
     if(!mNetwork)
     {
-        std::cout << "Network is not ready. Did you run setupWiFiNetwork()?" << std::endl;
+        Serial.println("Network is not ready. Did you run setupWiFiNetwork()?");
     }
     else
     {
         mServer = new WiFiServer(port);
         mServer->begin();
 
-        std::cout << "Server ready. Listening at port: " << port << std::endl;
+        Serial.printf("Server ready. Listening at port: %d\n", port);
     }
 }
 
@@ -74,7 +74,7 @@ void Communicator::handleServer()
     Task receivedMessage;
     String parsedData;
     
-    std::cout << "Running server" << std::endl;
+    Serial.println("Running server");
     while(mRunServer)
     {
         client = mServer->available();
@@ -86,7 +86,7 @@ void Communicator::handleServer()
                 if(client.available())
                 {
                     receivedMessage = readMessage(client);
-                    std::cout << "Received " << receivedMessage.raw << std::endl;
+                    Serial.printf("Received %s\n", receivedMessage.raw);
                     sendACK();
                     mTasksQueue.push(receivedMessage);
                 }
@@ -101,31 +101,31 @@ void Communicator::handleServer()
                 switch(newTask.taskID)
                 {
                     case START_ACQUISITION:
-                        std::cout << "START_ACQUISITION task received" << std::endl;
+                        Serial.println("START_ACQUISITION task received");
                         break;
 
                     case STOP_ACQUISITION:
-                        std::cout << "STOP_ACQUISITION task received" << std::endl;
+                        Serial.println("STOP_ACQUISITION task received");
                         break;
 
                     case TIMED_ACQUISITION:
-                        std::cout << "TIMED_ACQUISITION task received" << std::endl;
+                        Serial.println("TIMED_ACQUISITION task received");
                         break;
 
                     case GET_CONFIGURATION:
-                        std::cout << "GET_CONFIGURATION task received" << std::endl;
+                        Serial.println("GET_CONFIGURATION task received");
                         break;
 
                     case UPDATE_CONFIGURATION:
-                        std::cout << "UPDATE_CONFIGURATION task received" << std::endl;
+                        Serial.println("UPDATE_CONFIGURATION task received");
                         break;
 
                     case POWER_OFF:
-                        std::cout << "POWER_OFF task received" << std::endl;
+                        Serial.println("POWER_OFF task received");
                         break;
 
                     case ALIVE:
-                        std::cout << "ALIVE task received" << std::endl;
+                        Serial.println("ALIVE task received");
                         sendACK();
                         break;
 
@@ -181,7 +181,7 @@ Task Communicator::readMessage(WiFiClient client)
             parseParametersString(token, parsedMsg);
             break;
         default:
-            std::cout << "Unexpected message length: " << token << std::endl;
+            Serial.printf("Unexpected message length: %d\n", token);
         }
         tokenPos += 1;
         rcvMsg.remove(0, pos + 1);
@@ -232,7 +232,7 @@ int Communicator::getStatus()
 void Communicator::stopServer()
 {
     mRunServer = false;
-    std::cout << "Stopping server" << std::endl;
+    Serial.println("Stopping server");
 }
 
 void Communicator::updataDataCollectionFlag(bool newStatus)

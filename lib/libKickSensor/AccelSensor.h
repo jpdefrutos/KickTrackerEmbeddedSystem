@@ -5,7 +5,6 @@
 #ifdef ARDUINO_NANO_ESP32
 	#include <vector>
 	#include <string>
-	#include <iostream>
 #else
 	#include <ArduinoSTL.h>
 #endif

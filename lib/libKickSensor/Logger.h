@@ -4,7 +4,6 @@
 #ifdef ARDUINO_NANO_ESP32
 	#include <vector>
 	#include <string>
-	#include <iostream>
 #else
 	#include <ArduinoSTL.h>
 #endif
@@ -16,7 +15,7 @@
 #define LOG_BUFFER_SIZE 1024
 
 
-typedef enum LOGSEV
+enum LOGSEV
 {
     INFORMATION,
     WARNING,

@@ -25,7 +25,7 @@ void SensorManager::powerUpSensor(const int regAddress, const int value)
 int SensorManager::readSensor(std::vector<int32_t> *returnValue)
 {
 	//GlobalLogger->logEvent(ERROR, CLASSNAME, "readSensor", "readSensor is a virtual method");
-	std::cout << "[ERR] readSensor is a virtual method" << std::endl;
+	Serial.println("[ERR] readSensor is a virtual method");
 	return -1;
 };
 
@@ -40,7 +40,7 @@ void SensorManager::continuousReading(int durationMs, float freqHz)
 	float waitBetweenLoops = 1000 / freqHz;
 	int readSize;
 
-	std::cout << "Start collection... of " << durationMs << " ms every " << waitBetweenLoops << " ms." << std::endl;
+	Serial.printf("Start collection... of %d ms every %d ms", durationMs, waitBetweenLoops);
 
 	startTime = millis();
 	lastIterationTime = millis();
@@ -52,17 +52,17 @@ void SensorManager::continuousReading(int durationMs, float freqHz)
 		}
 		else
 		{
-			std::cout << "Loop!!" << std::endl;
+			Serial.println("Loop!!");
 			readSize = readSensor(mBuffer);
-			std::cout << "Received size: " << readSize << std::endl;
+			Serial.printf("Received size: %d\n", readSize);
 			for(size_t i=0; i < readSize; i++)
 			{
-				std::cout << "["<< i << "]" << "\t" << mBuffer->at(i) << std::endl;
+				Serial.printf("[%d]\t%.3f\n", i, mBuffer->at(i));
 			};
 			lastIterationTime = millis();
 		};
 	};
-	std::cout << "... Done!" << std::endl;
+	Serial.println("... Done!");
 };
 
 void SensorManager::setAddress(int address)
