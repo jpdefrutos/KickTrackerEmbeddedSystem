@@ -6,186 +6,143 @@
 	#include <ArduinoSTL.h>
 #endif
 
-#define CORE_0 0
-#define CORE_1 1
+extern "C" {
+int _write(int fd, char *ptr, int len) {
+  (void) fd;
+  return Serial.write(ptr, len);
+}
+}
 
-Communicator* comms_manager;
 
-WiFiClient client;
-WiFiUDP UDPSocket;
-
-bool networkRunning = false;
-bool socketRunning = false;
-
-static char sendBuffer[1024] = "";
-static char rcvBuffer[1024] = "";
-
-IPAddress UDPIP;
-IPAddress BroadcastIP;
-IPAddress SensorBoardIP = IPAddress(192, 168, 4, 1);
-
-int UDPPort = 3000;
-int DestPort = 3500;
-
-enum BOARD_STATE_VALUES {
+typedef enum{
     START,
-    COMMS_OPEN,
-    WAIT_FOR_START_ACQ,
-    FORWARD_DATA
-};
+    SENDING_DATA,
+} STATES_VALUE;
 
-int BOARD_STATE = START;
+int STATE = START;
 
-AccelSensor *sensor;
+///////// SENSOR //////////
+AccelSensor<float> *sensor;
+time_t* currTime;
+int sensorBufferSize = 8;
+std::vector<float> dataSample(sensorBufferSize);
+///////// SENSOR //////////
 
-ESP_EVENT_DEFINE_BASE(COMMUNICATOR_EVENTS);
+///////// COMMUNICATION//////////
+const int BAUDRATE = 115200;
 
-static esp_event_handler_instance_t s_instance;
-TaskHandle_t dataCollectionTaskHandle;
+int socketPort = 3500;
+IPAddress socketIP;
+IPAddress broadcastIP;
 
-typedef struct{
-    int timeout;
-    QueueHandle_t dataQueue;
-} THREAD_TASK_ARGS;
+int clientPort;
+IPAddress clientIP;
 
-THREAD_TASK_ARGS taskArgs;
+WiFiUDP *socket;
+Communicator<float>* comms_manager;
 
-void ReadSensorTask(void* params)
-{
-    THREAD_TASK_ARGS args = *((THREAD_TASK_ARGS*) params);
-    std::vector<int32_t> dataVector;
-    if(args.timeout)
-    {
-        sensor->continuousReading(&dataVector, args.timeout, 100);
-    }
-    else{
-        sensor->readSensor(&dataVector);
-    }
-
-    if(uxQueueSpacesAvailable(args.dataQueue) > 0)
-    {
-        int ret = xQueueSend(args.dataQueue, (void*) &dataVector, 0);
-        if(ret == errQUEUE_FULL)
-        {
-            Serial.println("Data queue is full!");
-        }
-    }
-}
-
-void startDataCollectionTask(void* handler_args, esp_event_base_t base, int32_t id, void* eventData)
-{
-    BOARD_STATE = START_ACQUISITION;
-    THREAD_TASK_ARGS args = *((THREAD_TASK_ARGS*) handler_args);
-    args.timeout = *((int*) eventData);
-    xTaskCreatePinnedToCore(
-        ReadSensorTask
-        , "Read sensor"
-        , 2048
-        , (void*) &args
-        , 1
-        , &dataCollectionTaskHandle
-        , CORE_1
-    );
-
-}
-
-void stopDataCollectionTask(void* handler_args, esp_event_base_t base, int32_t id, void* eventData)
-{
-    BOARD_STATE = COMMS_OPEN;
-    vTaskDelete(dataCollectionTaskHandle);
-    dataCollectionTaskHandle = NULL;
-}
-
-
-esp_event_loop_handle_t eventLoop;
-
-
-std::vector<int32_t> dataSample;
-Task taskSample;
-QueueHandle_t DataQueue = xQueueCreate(1024, sizeof(dataSample));
-QueueHandle_t TasksQueue = xQueueCreate(1024, sizeof(taskSample));
-
+bool socketIsOpen = false;
+bool dataSocketOpen = false;
+///////// COMMUNICATION//////////
 void setup()
 {
-    Serial.begin(115200);
-    Serial.println("Starting system");
-    if(esp_event_loop_create_default() != ESP_OK)
-    {
-        while (1)
-        {
-            Serial.println("Failed to create event loop");
-        } 
+    Serial.begin(BAUDRATE);
+    WiFi.softAP(WIFI_SSID);
+    
+    // sensor = new Adafruit_MMA8451();
+    sensor = new AccelSensor<float>(0x68, sensorBufferSize);
+    sensor->powerUpSensor(0x6B, 0);
+
+    while(!sensor->isReady())
+    {  
+        Serial.println("Waiting for sensor...");
     }
-    Serial.println("Event loop created");
 
-    comms_manager = new Communicator(WIFI_SSID, "", SensorBoardIP, 3000, &DataQueue, &TasksQueue);
-    Serial.println("Communicator created");
-    // if (!WiFi.softAP(WIFI_SSID)) {
-    //     log_e("Soft AP creation failed.");
-    //     while(1);
-    //     Serial.printf(".");
-    // }
-    // networkRunning = true;
-    // do
-	// {
-	//     networkRunning = WiFi.softAP("TESTWIFI", "AAAAA");
-	// 	delay(500);
-	// 	Serial.printf(".");
-	// } while (!networkRunning);// && noRetries < MAX_RETRY);
-    	
-    if(comms_manager->isNetworkRunning())
-    {
-        Serial.println("WiFi network stablished");
+    socketIP = WiFi.softAPIP();
+    broadcastIP = IPAddress(255, 255, 255, 255);
 
-        // UDPIP = WiFi.softAPIP();
-        // BroadcastIP = ~WiFi.subnetMask() | WiFi.gatewayIP();
-        // server.begin();      
-    }
-    Serial.println("WiFi network open");
+    Serial.println("Sensor active and communication port open!");
+    Serial.printf("Running LOOP on core %d\n", xPortGetCoreID());
 
-    taskArgs.dataQueue = DataQueue;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(COMMUNICATOR_EVENTS, COMMUNICATOR_EVENT_START_ACQUISITION, startDataCollectionTask, (void *) &taskArgs, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(COMMUNICATOR_EVENTS, COMMUNICATOR_EVENT_STOP_ACQUISITION, stopDataCollectionTask, NULL, NULL));
-    Serial.println("Event handlers created");
-
+    STATE = START;
 }
 
 void loop()
 {
-    // Serial.printf("Board information: %s", UDPIP.toString());
-    // Serial.printf(" (%s)\n", BroadcastIP.toString());
-    Serial.println("AA");
-    if(comms_manager->isNetworkRunning())
+    switch (STATE)
     {
-        switch (BOARD_STATE)
+    case START:
+        socket = new WiFiUDP();
+        
+        if(socket->begin(socketPort))
         {
-        case START:
-            if(!comms_manager->broadcastMessage())
-            {
-                Serial.println("Desktop app was not found. Retrying in 5 seconds");
-                delay(5000);
-            }
-            else
-            {
-                Serial.println("Found the desktop app!");
-                BOARD_STATE = COMMS_OPEN;
-                comms_manager->handleCommunication();
+            Serial.println("UDP Broadcast socket ready");
+            socketIsOpen = true;
 
-                comms_manager->sendMessage("0;0;;");
-                Serial.printf("Sent back %s\n", "0;0;;");
-            }
-            Serial.println("START -> COMMS ACTIVE");
-            break;
+            int numAttempts = 10;
+            bool success = false;
+            static char msgBuffer[1024] = "";
+            Task parsedMsg;
+            do
+            {
+                sprintf(msgBuffer, "0;2;%s:%d;", WiFi.softAPIP().toString().c_str(), socketPort);
+                socket->beginPacket(broadcastIP, socketPort);
+                socket->printf(msgBuffer);
+                socket->endPacket(); 
 
-        default:
-            comms_manager->handleCommunication();
-            break;
-        }       
+                if(socket->parsePacket())
+                {
+                    int len = socket->read(msgBuffer, 1024);
+                    if (len)
+                    {
+                        msgBuffer[len] = 0;
+                    }
+                    Serial.printf("Received message from %s: %s\n", socket->remoteIP().toString().c_str(), msgBuffer);
+                    parsedMsg = comms_manager->parseMessage(msgBuffer);
+                    clientIP.fromString(parsedMsg.strParams[0]);
+                    clientPort = parsedMsg.strParams[1].toInt();
+                    Serial.printf("Received client data receiver socket info: %s @ %s\n", parsedMsg.strParams[1].c_str(), clientIP.toString().c_str());
+                    success = true;
+                    numAttempts = 0;
+                }
+                else
+                {
+                    numAttempts--;
+                    delay(5000);
+                }
+            } while (numAttempts || !success);
+
+            if(success)
+            {
+                STATE = SENDING_DATA;
+            }
+        }
+        break;
+    
+    case SENDING_DATA:
+        if (!socketIsOpen)
+        {
+            Serial.println("A");
+            socket->stop();
+            socket = new WiFiUDP();
+            socketIsOpen = socket->begin(socketPort);
+        }
+        
+        Serial.println("Sending data!");
+        sensor->readSensor(&dataSample);
+        
+        Serial.printf("Sensor read [%f, %f, %f] at %f\n",  dataSample.at(1),  dataSample.at(2),  dataSample.at(3), dataSample.at(0));
+        
+        Task dataTask = comms_manager->formatSensorDataTask(dataSample);
+        comms_manager->formatTaskMessage(dataTask);
+
+        socket->beginPacket(clientIP, clientPort);
+        socket->printf(dataTask.raw.c_str());
+        socket->endPacket(); 
+        Serial.printf("Sent: {%s} to %d@%s\n", dataTask.raw.c_str(), clientPort, clientIP.toString().c_str());
+
+        break;
 
     }
-    else
-    {
-        Serial.println("Network not available!");
-        BOARD_STATE = START;
-    }
+    delay(100);
 }
