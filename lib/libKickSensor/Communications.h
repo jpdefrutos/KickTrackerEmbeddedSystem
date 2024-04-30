@@ -41,6 +41,7 @@ typedef struct
     String raw;
 } Task;
 
+template<typename T>
 class Communicator
 {
 public:
@@ -52,8 +53,8 @@ public:
     int sendMessage(String message);
     void sendACK();
     int getWiFiStatus();
-    Task formatSensorDataTask(std::vector<int32_t> &dataVector);
-    const char* formatTaskMessage(Task task);
+    Task formatSensorDataTask(std::vector<T> &dataVector);
+    const char* formatTaskMessage(Task &task);
     void handleCommunication();
     void setDataLoop();
     int sendDataOnQueue(String dataLocation, int numberSamples);

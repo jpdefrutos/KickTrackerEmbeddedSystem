@@ -14,13 +14,14 @@
 #define CLASSNAME "SensorManager"
 
 
+template <typename T>
 class SensorManager
 {
 public:
 	SensorManager(int address, int bufferSize = 32);
 	void powerUpSensor(const int regAddress, const int value);
-	virtual int readSensor(std::vector<int32_t> *readValue);
-	void continuousReading(std::vector<int32_t> *readValue, int durationMs, float freqHz);
+	virtual int readSensor(std::vector<T> *readValue);
+	void continuousReading(std::vector<T> *readValue, int durationMs, float freqHz);
 	void setAddress(int address);
 	int getAddress(int &address);
 	bool isReady();
@@ -31,7 +32,7 @@ protected:
 	int mSensorAddress;
 	bool mReady = false;
 	unsigned int mBufferSize;
-	std::vector<int32_t>* mBuffer;
+	std::vector<T>* mBuffer;
 
 private:
 

@@ -2,8 +2,8 @@
 #include <time.h>
 #include <Wire.h>
 
-
-AccelSensor::AccelSensor(int address, int bufferSize) : SensorManager(address, bufferSize)
+template <typename T>
+AccelSensor<T>::AccelSensor(int address, int bufferSize) : SensorManager<T>(address, bufferSize)
 {
     mSensor = new Adafruit_MMA8451();
     while(!mSensor->begin())
@@ -16,50 +16,57 @@ AccelSensor::AccelSensor(int address, int bufferSize) : SensorManager(address, b
     Serial.printf("[DEB] Sensor active (%d G)\n", range);
     
     mSensorBufferSize = bufferSize;
-    std::vector<int32_t> _buffer(mSensorBufferSize, 0);
+    std::vector<T> _buffer(mSensorBufferSize, 0);
     mSensorBuffer = &_buffer;
     mReady = true;
 };
 
-int AccelSensor::readSensor(std::vector<int32_t> *returnValue)
+template <typename T>
+int AccelSensor<T>::readSensor(std::vector<T> *returnValue)
 {
+    int retValue = 0;
     if (mReady)
     {
         returnValue->clear();
         mSensor->read();
-        mSensor->getEvent(mLastEvent);
-
+        mSensor->getEvent(&mLastEvent);
         returnValue->push_back(millis());
-        returnValue->push_back(mLastEvent->acceleration.x);
-        returnValue->push_back(mLastEvent->acceleration.y);
-        returnValue->push_back(mLastEvent->acceleration.z);
-    };
+        returnValue->push_back(mLastEvent.acceleration.x);
+        returnValue->push_back(mLastEvent.acceleration.y);
+        returnValue->push_back(mLastEvent.acceleration.z);
+        
+        mLastDataStream = returnValue;
+                
+        // returnValue = mSensorBuffer;
+        retValue = returnValue->size();
+    }
 
-    mLastDataStream = returnValue;
-    mLastDataStreamString = formatDataStream(returnValue);
-    // returnValue = mSensorBuffer;
     return mSensorBufferSize;
 };
 
-String AccelSensor::formatDataStream(const std::vector<int32_t>* dataStream)
+template <typename T>
+String AccelSensor<T>::formatDataStream(const std::vector<T>* dataStream)
 {
-    String stringData = "";
+    char* stringData;
     if(dataStream->size() > 0)
     {
-        for(size_t i=0; i < dataStream->size(); i++)
-        {
-            stringData += stringData + dataStream->at(i) + ";";
-        } 
-        Serial.printf("Converted stream: %s\n", stringData);
+        Serial.println("B");
+        sprintf(stringData, "%f:%f:%f:%f", dataStream->at(0),  dataStream->at(1),  dataStream->at(2), dataStream->at(3));
+        Serial.printf("Formatter data %s\n", stringData);
     }
     else
     {
         Serial.println("[ERR] Stream is empty");
     }
-    return stringData;
+    
+    Serial.println("C");
+    return String(stringData);
 }
 
-std::vector<int32_t>* AccelSensor::getLastData()
+template <typename T>
+std::vector<T>* AccelSensor<T>::getLastData()
 {
     return mLastDataStream;
 }
+
+template class AccelSensor<float>;

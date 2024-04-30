@@ -2,15 +2,16 @@
 #include <time.h>
 #include <Wire.h>
 
-
-GyroSensor::GyroSensor(int address, int bufferSize) : SensorManager(address, bufferSize)
+template <typename T>
+GyroSensor<T>::GyroSensor(int address, int bufferSize) : SensorManager<T>(address, bufferSize)
 {
     mSensorBufferSize = bufferSize;
-    std::vector<int32_t> _buffer(mSensorBufferSize, 0);
+    std::vector<T> _buffer(mSensorBufferSize, 0);
     mSensorBuffer = &_buffer;
 };
 
-int GyroSensor::readSensor(std::vector<int32_t> *returnValue)
+template <typename T>
+int GyroSensor<T>::readSensor(std::vector<T> *returnValue)
 {
     if (mReady)
     {
@@ -21,7 +22,7 @@ int GyroSensor::readSensor(std::vector<int32_t> *returnValue)
         Wire.requestFrom(this->mSensorAddress, 7 * 2, true); // request a total of 7*2=14 registers
         
         returnValue->push_back(millis());
-        int32_t buffer = 0;
+        T buffer = 0;
         for (size_t i = 1; i < mSensorBufferSize; i++)
         {
             buffer = 0;
@@ -53,7 +54,8 @@ int GyroSensor::readSensor(std::vector<int32_t> *returnValue)
     return mSensorBufferSize;
 };
 
-String GyroSensor::formatDataStream(const std::vector<int32_t>* dataStream)
+template <typename T>
+String GyroSensor<T>::formatDataStream(const std::vector<T>* dataStream)
 {
     String stringData = "";
     if(dataStream->size() > 0)
@@ -71,7 +73,10 @@ String GyroSensor::formatDataStream(const std::vector<int32_t>* dataStream)
     return stringData;
 }
 
-std::vector<int32_t>* GyroSensor::getLastData()
+template <typename T>
+std::vector<T>* GyroSensor<T>::getLastData()
 {
     return mLastDataStream;
 }
+
+template class GyroSensor<int32_t>;

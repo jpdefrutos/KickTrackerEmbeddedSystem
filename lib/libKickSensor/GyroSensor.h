@@ -15,19 +15,21 @@
 
 using namespace std;
 
-class GyroSensor : public SensorManager
+template <typename T>
+class GyroSensor : public SensorManager<T>
 {
 public:
 	GyroSensor(int address, int bufferSize);
-	int readSensor(std::vector<int32_t> *returnValue);
-	std::vector<int32_t>* getLastData();
-	String formatDataStream(const std::vector<int32_t> *dataStream);
+	int readSensor(std::vector<T> *returnValue);
+	std::vector<T>* getLastData();
+	String formatDataStream(const std::vector<T> *dataStream);
 
 private:
-	std::vector<int32_t>* mLastDataStream;
+	std::vector<T>* mLastDataStream;
 	String mLastDataStreamString;
 	int mSensorBufferSize;
-	std::vector<int32_t>* mSensorBuffer;
+	std::vector<T>* mSensorBuffer;
+	bool mReady = false;
 };
 
 #endif

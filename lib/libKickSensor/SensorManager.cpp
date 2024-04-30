@@ -3,16 +3,17 @@
 #include <TimeLib.h>
 #include "tools.h"
 
-
-SensorManager::SensorManager(int address, int bufferSize)
+template <typename T>
+SensorManager<T>::SensorManager(int address, int bufferSize)
 {
 	setAddress(address);
 	mBufferSize = bufferSize;
-	std::vector<int32_t> _buffer(mBufferSize, 0);
+	std::vector<T> _buffer(mBufferSize, 0);
 	mBuffer = &_buffer;
 };
 
-void SensorManager::powerUpSensor(const int regAddress, const int value)
+template <typename T>
+void SensorManager<T>::powerUpSensor(const int regAddress, const int value)
 {
 	Wire.begin();
 	Wire.beginTransmission(mSensorAddress);
@@ -22,14 +23,16 @@ void SensorManager::powerUpSensor(const int regAddress, const int value)
 	mReady = true;
 };
 
-int SensorManager::readSensor(std::vector<int32_t> *returnValue)
+template <typename T>
+int SensorManager<T>::readSensor(std::vector<T> *returnValue)
 {
 	//GlobalLogger->logEvent(ERROR, CLASSNAME, "readSensor", "readSensor is a virtual method");
 	Serial.println("[ERR] readSensor is a virtual method");
 	return -1;
 };
 
-void SensorManager::continuousReading(std::vector<int32_t> *returnValue, int durationMs, float freqHz)
+template <typename T>
+void SensorManager<T>::continuousReading(std::vector<T> *returnValue, int durationMs, float freqHz)
 {
 	time_t startTime, lastIterationTime;
 
@@ -65,29 +68,37 @@ void SensorManager::continuousReading(std::vector<int32_t> *returnValue, int dur
 	Serial.println("... Done!");
 };
 
-void SensorManager::setAddress(int address)
+template <typename T>
+void SensorManager<T>::setAddress(int address)
 {
 	mSensorAddress = address;
 };
 
-int SensorManager::getAddress(int &address)
+template <typename T>
+int SensorManager<T>::getAddress(int &address)
 {
 	if (address != NULL)
 		address = mSensorAddress;
 	return mSensorAddress;
 };
 
-bool SensorManager::isReady()
+template <typename T>
+bool SensorManager<T>::isReady()
 {
 	return mReady;
 };
 
-int SensorManager::getBufferSize()
+template <typename T>
+int SensorManager<T>::getBufferSize()
 {
 	return mBufferSize;
 };
 
-void SensorManager::setBufferSize(int bufferSize)
+template <typename T>
+void SensorManager<T>::setBufferSize(int bufferSize)
 {
 	mBufferSize = bufferSize;
 }
+
+template class SensorManager<float>;
+template class SensorManager<int32_t>;

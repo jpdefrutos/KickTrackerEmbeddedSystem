@@ -1,7 +1,8 @@
 #include "Communications.h"
 
 
-Communicator::Communicator(String ssid, String pwd, IPAddress serverIP, int serverPort, QueueHandle_t* dataQueue, QueueHandle_t* tasksQueue)
+template<typename T>
+Communicator<T>::Communicator(String ssid, String pwd, IPAddress serverIP, int serverPort, QueueHandle_t* dataQueue, QueueHandle_t* tasksQueue)
 {
     if(*dataQueue != NULL)
     {
@@ -50,7 +51,8 @@ Communicator::Communicator(String ssid, String pwd, IPAddress serverIP, int serv
 
 }
 
-void Communicator::setupWiFiNetwork(String ssid, String pwd)
+template<typename T>
+void Communicator<T>::setupWiFiNetwork(String ssid, String pwd)
 {
     if(WiFi.softAP(ssid))
     {
@@ -71,7 +73,8 @@ void Communicator::setupWiFiNetwork(String ssid, String pwd)
     }
 }
 
-void Communicator::setupBroadcastSocket()
+template<typename T>
+void Communicator<T>::setupBroadcastSocket()
 {
     if(!mBroadcastSocketOpen)
     {
@@ -89,8 +92,8 @@ void Communicator::setupBroadcastSocket()
     }
 }
 
-
-bool Communicator::broadcastMessage()
+template<typename T>
+bool Communicator<T>::broadcastMessage()
 {
     int numAttempts = 10;
     bool success = false;
@@ -131,8 +134,8 @@ bool Communicator::broadcastMessage()
     return success;
 }
 
-
-void Communicator::setupCommsSocket()
+template<typename T>
+void Communicator<T>::setupCommsSocket()
 {
     if(!mWiFiNetworkOpen)
     {
@@ -158,7 +161,8 @@ void Communicator::setupCommsSocket()
     }
 }
 
-void Communicator::handleCommunication()
+template<typename T>
+void Communicator<T>::handleCommunication()
 {
     WiFiClient client;
     Task receivedMessage;
@@ -166,7 +170,7 @@ void Communicator::handleCommunication()
     static char messageBuffer[1024];
 
     Task rcvTask;
-    std::vector<int32_t> rcvDataSample;
+    std::vector<T> rcvDataSample;
 
     int objectInQueue = 0;
     int packetSize = 0;
@@ -250,19 +254,22 @@ void Communicator::handleCommunication()
     }
 }
 
-void Communicator::setDataLoop()
+template<typename T>
+void Communicator<T>::setDataLoop()
 {
 
 }
 
-void Communicator::sendACK()
+template<typename T>
+void Communicator<T>::sendACK()
 {
     static char message[1024];
     sprintf(message, "%d;0;;", ALIVE);
     sendMessage(message);
 }
 
-Task Communicator::parseMessage(String rcvMsg)
+template<typename T>
+Task Communicator<T>::parseMessage(String rcvMsg)
 {       
     Task parsedMsg;
     parsedMsg.raw = rcvMsg;
@@ -298,7 +305,8 @@ Task Communicator::parseMessage(String rcvMsg)
     return parsedMsg;
 }
 
-void Communicator::parseParametersString(String rawString, Task &taskInformation)
+template<typename T>
+void Communicator<T>::parseParametersString(String rawString, Task &taskInformation)
 {
     size_t pos = 0;
     String token;
@@ -317,10 +325,10 @@ void Communicator::parseParametersString(String rawString, Task &taskInformation
     }
 }
 
-const char* Communicator::formatTaskMessage(Task task)
+template<typename T>
+const char* Communicator<T>::formatTaskMessage(Task &task)
 {
-    static char *buffer;
-    
+    char buffer[1024];
     if(task.raw.length())
     {
         // The Task message has already been formated by someone else
@@ -330,19 +338,20 @@ const char* Communicator::formatTaskMessage(Task task)
         sprintf(buffer, "%d;%d;", task.taskID, task.numParams);
         if(task.numParams)
         {
-            sprintf(buffer, "%s%s", buffer, task.strParams[0]);
+            sprintf(buffer, "%s%s", buffer, task.strParams[0].c_str());
             for (size_t i=1; i < task.numParams; i++)
             {
-                sprintf(buffer, "%s:%s", buffer, task.strParams[i]);
+                sprintf(buffer, "%s:%s", buffer, task.strParams[i].c_str());
             }
         }
-        sprintf(buffer, "%d;\0", buffer);
+        sprintf(buffer, "%s;\0", buffer);
         task.raw = String(buffer);
     }
     return buffer;
 }
 
-Task Communicator::formatSensorDataTask(std::vector<int32_t> &dataVector)
+template<typename T>
+Task Communicator<T>::formatSensorDataTask(std::vector<T> &dataVector)
 {
     Task dataSampleTask;
     dataSampleTask.taskID = DATA_SAMPLE;
@@ -355,17 +364,20 @@ Task Communicator::formatSensorDataTask(std::vector<int32_t> &dataVector)
     return dataSampleTask;
 }
 
-int Communicator::sendMessage(const char* message)
+template<typename T>
+int Communicator<T>::sendMessage(const char* message)
 {
     return mServer->printf(message);
 };
 
-int Communicator::sendMessage(String message)
+template<typename T>
+int Communicator<T>::sendMessage(String message)
 {
     return sendMessage(message.c_str());
 }
 
-int Communicator::sendDataOnQueue(String dataLocation, int numberSamples)
+template<typename T>
+int Communicator<T>::sendDataOnQueue(String dataLocation, int numberSamples)
 {
     for(size_t i=0; i < numberSamples; i++)
     {
@@ -373,29 +385,34 @@ int Communicator::sendDataOnQueue(String dataLocation, int numberSamples)
     }
 }
 
-int Communicator::getWiFiStatus()
+template<typename T>
+int Communicator<T>::getWiFiStatus()
 {
     mStatus = WiFi.status();
     return mStatus;
 }
 
-void Communicator::stopServer()
+template<typename T>
+void Communicator<T>::stopServer()
 {
     mCommsSocketOpen = false;
     Serial.println("Stopping server");
 }
 
-void Communicator::updataDataCollectionFlag(bool newStatus)
+template<typename T>
+void Communicator<T>::updataDataCollectionFlag(bool newStatus)
 {
 
 }
 
-WiFiClient Communicator::available()
+template<typename T>
+WiFiClient Communicator<T>::available()
 {
     return mServer->available();
 }
 
-IPAddress Communicator::getBoardIP()
+template<typename T>
+IPAddress Communicator<T>::getBoardIP()
 {
     IPAddress retValue;
     if(mWiFiNetworkOpen)
@@ -405,7 +422,8 @@ IPAddress Communicator::getBoardIP()
     return retValue;
 }
 
-IPAddress Communicator::getServerIP()
+template<typename T>
+IPAddress Communicator<T>::getServerIP()
 {
     IPAddress retValue;
     if(mCommsSocketOpen)
@@ -415,7 +433,8 @@ IPAddress Communicator::getServerIP()
     return retValue;
 }
 
-int32_t Communicator::getServerPort()
+template<typename T>
+int32_t Communicator<T>::getServerPort()
 {
     int32_t retValue;
     if(mCommsSocketOpen)
@@ -425,7 +444,8 @@ int32_t Communicator::getServerPort()
     return retValue;
 }
 
-IPAddress Communicator::getBroadcastIP()
+template<typename T>
+IPAddress Communicator<T>::getBroadcastIP()
 {
     IPAddress retValue;
     if(mWiFiNetworkOpen)
@@ -436,7 +456,8 @@ IPAddress Communicator::getBroadcastIP()
 
 }
 
-int32_t Communicator::getBroadcastPort()
+template<typename T>
+int32_t Communicator<T>::getBroadcastPort()
 {
     int32_t retValue;
     if(mCommsSocketOpen)
@@ -446,32 +467,41 @@ int32_t Communicator::getBroadcastPort()
     return retValue;
 }
 
-bool Communicator::isServerRunning()
+template<typename T>
+bool Communicator<T>::isServerRunning()
 {
     return mCommsSocketOpen;
 }
 
-bool Communicator::isNetworkRunning()
+template<typename T>
+bool Communicator<T>::isNetworkRunning()
 {
     return mWiFiNetworkOpen;
 }
 
-IPAddress Communicator::getRemoteIP()
+template<typename T>
+IPAddress Communicator<T>::getRemoteIP()
 {
     return mBroadcastServer->remoteIP();
 }
 
-int Communicator::getRemotePort()
+template<typename T>
+int Communicator<T>::getRemotePort()
 {
     return mBroadcastServer->remotePort();
 }
 
-QueueHandle_t* Communicator::getReferenceToDataQueue()
+template<typename T>
+QueueHandle_t* Communicator<T>::getReferenceToDataQueue()
 {
     return mDataQueue;
 }
 
-QueueHandle_t* Communicator::getReferenceToTaskQueue()
+template<typename T>
+QueueHandle_t* Communicator<T>::getReferenceToTaskQueue()
 {
     return mTasksQueue;
 }
+
+template class Communicator<float>;
+template class Communicator<int32_t>;
