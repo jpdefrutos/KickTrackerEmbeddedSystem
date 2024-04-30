@@ -1,13 +1,27 @@
 #include "Communications.h"
 
 
-Communicator::Communicator(String ssid, String pwd, int port)
+Communicator::Communicator(String ssid, String pwd, IPAddress serverIP, int serverPort, QueueHandle_t* dataQueue, QueueHandle_t* tasksQueue)
 {
+    if(*dataQueue != NULL)
+    {
+        mDataQueue = dataQueue;
+    }
+    
+    if(*tasksQueue != NULL)
+    {
+        mTasksQueue = tasksQueue;
+    }
+
+    IPAddress subnetIP(192, 168, 1, 1);
+    IPAddress gatewayIP(255, 255, 0, 0);
     digitalWrite(LED_BUILTIN, LOW);
     // ssid, psw, ip, port should be saved in a config file and read upon power up
     Serial.printf("Setting up network: %s", ssid);
+    WiFi.config(serverIP, gatewayIP, subnetIP);
     setupWiFiNetwork(ssid, pwd);
-    openServer(port);
+    setupCommsSocket();
+    setupBroadcastSocket();
     // int retries = 3;
     // do
     // {
@@ -27,7 +41,7 @@ Communicator::Communicator(String ssid, String pwd, int port)
     // }
     // else
     // {
-    //     openServer(ip, port);
+    //     setupCommsSocket(ip, port);
     //     digitalWrite(LED_BUILTIN, HIGH);
     //     digitalWrite(LEDR, LOW);
     //     digitalWrite(LEDG, HIGH);
@@ -36,130 +50,223 @@ Communicator::Communicator(String ssid, String pwd, int port)
 
 }
 
-
-void Communicator::setQueue(std::queue<std::vector<int32_t>>* queue)
-{
-    mQueue = queue;
-}
-
-
 void Communicator::setupWiFiNetwork(String ssid, String pwd)
 {
-    WiFi.softAP(ssid);  // Add WIFI_PSW if needed
-    Serial.printf("Created network %s\n", ssid);
-    Serial.printf("IP: %s\n", WiFi.softAPIP());
-    Serial.printf("Signal strength: %d dB\n", WiFi.RSSI());
-    mNetwork = true;
-}
-
-void Communicator::openServer(int port)
-{
-    if(!mNetwork)
+    if(WiFi.softAP(ssid))
     {
-        Serial.println("Network is not ready. Did you run setupWiFiNetwork()?");
+         // Add WIFI_PSW if needed
+        Serial.printf("Created network %s\n", ssid);
+        mWiFiNetworkOpen = true; 
+        mBoardIP = WiFi.softAPIP();
+        mBroadcastIP = IPAddress(255, 255, 255, 255);
+        mServerIP = IPAddress(mBoardIP);
+        mServerIP[3] = 10;
+        Serial.printf("Board IP: %s\tBroadcast IP: %s\n", mBoardIP.toString(), mBroadcastIP.toString());
+        Serial.printf("Signal strength: %d dB\n", WiFi.RSSI());
     }
     else
     {
-        mServer = new WiFiServer(port);
-        mServer->begin();
-
-        Serial.printf("Server ready. Listening at port: %d\n", port);
+        Serial.println("Cannot setup WiFi");
+        mWiFiNetworkOpen = false; 
     }
 }
 
-void Communicator::handleServer()
+void Communicator::setupBroadcastSocket()
 {
-    mRunServer = true;
-    WiFiClient client;
-    Task receivedMessage;
-    String parsedData;
-    
-    Serial.println("Running server");
-    while(mRunServer)
+    if(!mBroadcastSocketOpen)
     {
-        client = mServer->available();
-
-        if(client)
+        mBroadcastServer = new WiFiUDP();
+        
+        if(mBroadcastServer->begin(mBroadcastPort))
         {
-            while(client.connected())
-            {
-                if(client.available())
-                {
-                    receivedMessage = readMessage(client);
-                    Serial.printf("Received %s\n", receivedMessage.raw);
-                    sendACK();
-                    mTasksQueue.push(receivedMessage);
-                }
-            }
+            Serial.println("UDP Broadcast socket ready");
+            mBroadcastSocketOpen = true;
         }
         else
         {
-            if(!mTasksQueue.empty())
+            mBroadcastSocketOpen = false;
+        }
+    }
+}
+
+
+bool Communicator::broadcastMessage()
+{
+    int numAttempts = 10;
+    bool success = false;
+    static char rcvBuffer[1024] = "";
+    Task parsedMsg;
+    if(mBroadcastSocketOpen)
+    {
+        do
+        {
+            sprintf(rcvBuffer, "0;2;%s:%d;", mServerIP.toString().c_str(), mServerPort);
+            mBroadcastServer->beginPacket(mBroadcastIP, mBroadcastPort);
+            mBroadcastServer->printf(rcvBuffer);
+            mBroadcastServer->endPacket(); 
+
+            if(mBroadcastServer->parsePacket())
             {
-                Task newTask = mTasksQueue.front();
-                mTasksQueue.pop();
-                switch(newTask.taskID)
+                int len = mBroadcastServer->read(rcvBuffer, 1024);
+                if (len)
                 {
-                    case START_ACQUISITION:
-                        Serial.println("START_ACQUISITION task received");
-                        break;
+                    rcvBuffer[len] = 0;
+                }
+                Serial.printf("Received message from %s: %s\n", mBroadcastServer->remoteIP().toString().c_str(), rcvBuffer);
+                parsedMsg = parseMessage(rcvBuffer);
+                mClientSocketIP.fromString(parsedMsg.strParams[0]);
+                mClientCommsSocketPort = parsedMsg.strParams[1].toInt();
+                Serial.printf("Received client data receiver socket info: %s @ %s\n", parsedMsg.strParams[1].c_str(), mClientSocketIP.toString().c_str());
+                success = true;
+                numAttempts = 0;
+            }
+            else
+            {
+                numAttempts--;
+                delay(5000);
+            }
+        } while (numAttempts || !success);
+        mBroadcastServer->stop();
+    }
+    return success;
+}
 
-                    case STOP_ACQUISITION:
-                        Serial.println("STOP_ACQUISITION task received");
-                        break;
 
-                    case TIMED_ACQUISITION:
-                        Serial.println("TIMED_ACQUISITION task received");
-                        break;
+void Communicator::setupCommsSocket()
+{
+    if(!mWiFiNetworkOpen)
+    {
+        Serial.println("Network is not ready. Did you run setupWiFiNetwork()?");
+        mCommsSocketOpen = false;
+    }
+    else
+    {
+        mServer = new WiFiUDP();
+        mServer->begin(mServerPort);
+        if(mServer)
+        {
+            Serial.print("Server ready. Listening at IP: ");
+            Serial.print(mServerIP);
+            Serial.printf(" and port: %d\n", mServerPort);
+            mCommsSocketOpen = true;
+        }
+        else
+        {
+            Serial.println("Failed to open server...");
+            mCommsSocketOpen = false;
+        }
+    }
+}
 
-                    case GET_CONFIGURATION:
-                        Serial.println("GET_CONFIGURATION task received");
-                        break;
+void Communicator::handleCommunication()
+{
+    WiFiClient client;
+    Task receivedMessage;
+    String parsedData;
+    static char messageBuffer[1024];
 
-                    case UPDATE_CONFIGURATION:
-                        Serial.println("UPDATE_CONFIGURATION task received");
-                        break;
+    Task rcvTask;
+    std::vector<int32_t> rcvDataSample;
 
-                    case POWER_OFF:
-                        Serial.println("POWER_OFF task received");
-                        break;
+    int objectInQueue = 0;
+    int packetSize = 0;
+    int readBytes = 0;
+    Serial.println("Running server");
+    while(mCommsSocketOpen)
+    {
+        packetSize = mServer->parsePacket();
+        if(packetSize)
+        {
+            readBytes = mServer->read(messageBuffer, 1024);
+            if (readBytes)
+            {
+                messageBuffer[readBytes] = 0;
+            }
+            receivedMessage = parseMessage(messageBuffer);
+            Serial.printf("Received %s\n", receivedMessage.raw);
+            sendACK();
+            if (receivedMessage.taskID != ALIVE)
+            {
+                if(uxQueueSpacesAvailable(*mTasksQueue) > 0)
+                {
+                    int ret = xQueueSend(*mTasksQueue, (void*) &receivedMessage, 0);
+                    if(ret == errQUEUE_FULL)
+                    {
+                        Serial.println("mTasksQueue is full!");
+                    }
+                }
+            }
 
-                    case ALIVE:
-                        Serial.println("ALIVE task received");
-                        sendACK();
-                        break;
 
+        }
+
+        objectInQueue = xQueueReceive(*mTasksQueue, &rcvTask, 0);
+        if(objectInQueue == pdPASS)
+        {
+            Serial.printf("New task unqueued: Task ID: %d\n", rcvTask.taskID);
+            switch(rcvTask.taskID)
+            {
+                case PREPARE_ACQUISITION:
+                    Serial.println("PREPARE_ACQUISITION task received");
+                    mAcquisitioTimeout = rcvTask.strParams[0].toInt();
+                    xQueueReset(*mDataQueue);
+                    break;
+
+                case START_ACQUISITION:
+                    Serial.println("START_ACQUISITION task received");
+                    esp_event_post(COMMUNICATOR_EVENTS, COMMUNICATOR_EVENT_START_ACQUISITION, (void *) &mAcquisitioTimeout, sizeof(mAcquisitioTimeout), 0);
+                    break;
+
+                case STOP_ACQUISITION:
+                    Serial.println("STOP_ACQUISITION task received");
+                    esp_event_post(COMMUNICATOR_EVENTS, COMMUNICATOR_EVENT_STOP_ACQUISITION, NULL, sizeof(NULL), 0);
+                    break;
+
+                case POWER_OFF:
+                    Serial.println("POWER_OFF task received");
+                    break;
+                
+                case DATA_SAMPLE:
+                    Serial.println("DATA_SAMPLE received. Forwarding...");
+                    formatTaskMessage(rcvTask);
+                    mBroadcastServer->beginPacket(mClientSocketIP, mClientDataSocketPort);
+                    mBroadcastServer->printf(rcvTask.raw.c_str());
+                    mBroadcastServer->endPacket(); 
+            }
+        }
+        objectInQueue = xQueueReceive(*mDataQueue, &rcvDataSample, 0);
+        if(objectInQueue == pdPASS)
+        {
+            Task dataSampleTask = formatSensorDataTask(rcvDataSample);
+            if(uxQueueSpacesAvailable(*mTasksQueue) > 0)
+            {
+                int ret = xQueueSend(*mTasksQueue, (void*) &dataSampleTask, 0);
+                if(ret == errQUEUE_FULL)
+                {
+                    Serial.println("mTasksQueue is full!");
                 }
             }
         }
-
     }
-
 }
 
 void Communicator::setDataLoop()
 {
-    mCollectingDataFlag = true;
-    String parsedData;
-    while(!mQueue->empty() && !mCollectingDataFlag)
-    {
-        parsedData = formatSensorData(mQueue->front());
-        mQueue->pop();
-        sendMessage(parsedData);
-    }
+
 }
 
 void Communicator::sendACK()
 {
-    sendMessage("OK");
+    static char message[1024];
+    sprintf(message, "%d;0;;", ALIVE);
+    sendMessage(message);
 }
 
-Task Communicator::readMessage(WiFiClient client)
-{
-    String rcvMsg = client.readString();
-    
+Task Communicator::parseMessage(String rcvMsg)
+{       
     Task parsedMsg;
     parsedMsg.raw = rcvMsg;
+
 
     size_t pos = 0;
     size_t tokenPos = 0;
@@ -167,6 +274,7 @@ Task Communicator::readMessage(WiFiClient client)
     String param;
     while ((pos = rcvMsg.indexOf(MSG_DELIMITER)) != -1) {
         token = rcvMsg.substring(0, pos);
+
         switch (tokenPos)
         {
         case 0:
@@ -186,34 +294,76 @@ Task Communicator::readMessage(WiFiClient client)
         tokenPos += 1;
         rcvMsg.remove(0, pos + 1);
     }
-};
+
+    return parsedMsg;
+}
 
 void Communicator::parseParametersString(String rawString, Task &taskInformation)
 {
     size_t pos = 0;
     String token;
     size_t i=0;
-    for(i=0; i<taskInformation.numParams; i++)
+    for(i=0; i < taskInformation.numParams; i++)
     {
-        if(pos = rawString.indexOf(PARAM_DELIMITER) != -1)
+        if((pos = rawString.indexOf(PARAM_DELIMITER)) != -1)
         {
-            *taskInformation.strParams[i] = rawString.substring(0, pos);
+            taskInformation.strParams[i] = rawString.substring(0, pos);
             rawString.remove(0, pos + 1);
         }
+        else
+        {
+            taskInformation.strParams[i] = rawString;
+        }
     }
-    *taskInformation.strParams[i+1] = rawString;
 }
 
-String Communicator::formatSensorData(std::vector<int32_t> &dataVector)
+const char* Communicator::formatTaskMessage(Task task)
 {
-    String retVal;
-    return retVal;
+    static char *buffer;
+    
+    if(task.raw.length())
+    {
+        // The Task message has already been formated by someone else
+        *buffer = *task.raw.c_str();
+    }
+    else{
+        sprintf(buffer, "%d;%d;", task.taskID, task.numParams);
+        if(task.numParams)
+        {
+            sprintf(buffer, "%s%s", buffer, task.strParams[0]);
+            for (size_t i=1; i < task.numParams; i++)
+            {
+                sprintf(buffer, "%s:%s", buffer, task.strParams[i]);
+            }
+        }
+        sprintf(buffer, "%d;\0", buffer);
+        task.raw = String(buffer);
+    }
+    return buffer;
 }
+
+Task Communicator::formatSensorDataTask(std::vector<int32_t> &dataVector)
+{
+    Task dataSampleTask;
+    dataSampleTask.taskID = DATA_SAMPLE;
+    dataSampleTask.numParams = dataVector.size();
+    for(size_t i=0; i < dataSampleTask.numParams; i++)
+    {
+        dataSampleTask.strParams[i] = String(dataVector[i]);
+    }
+
+    return dataSampleTask;
+}
+
+int Communicator::sendMessage(const char* message)
+{
+    return mServer->printf(message);
+};
 
 int Communicator::sendMessage(String message)
 {
-    return mServer->write(message.c_str());
-};
+    return sendMessage(message.c_str());
+}
 
 int Communicator::sendDataOnQueue(String dataLocation, int numberSamples)
 {
@@ -223,7 +373,7 @@ int Communicator::sendDataOnQueue(String dataLocation, int numberSamples)
     }
 }
 
-int Communicator::getStatus()
+int Communicator::getWiFiStatus()
 {
     mStatus = WiFi.status();
     return mStatus;
@@ -231,16 +381,97 @@ int Communicator::getStatus()
 
 void Communicator::stopServer()
 {
-    mRunServer = false;
+    mCommsSocketOpen = false;
     Serial.println("Stopping server");
 }
 
 void Communicator::updataDataCollectionFlag(bool newStatus)
 {
-    mCollectingDataFlag = newStatus;
+
 }
 
-void Communicator::parseMessage(String message)
+WiFiClient Communicator::available()
 {
+    return mServer->available();
+}
 
+IPAddress Communicator::getBoardIP()
+{
+    IPAddress retValue;
+    if(mWiFiNetworkOpen)
+    {
+        retValue = WiFi.softAPIP();
+    }
+    return retValue;
+}
+
+IPAddress Communicator::getServerIP()
+{
+    IPAddress retValue;
+    if(mCommsSocketOpen)
+    {
+        retValue = mServerIP;
+    }
+    return retValue;
+}
+
+int32_t Communicator::getServerPort()
+{
+    int32_t retValue;
+    if(mCommsSocketOpen)
+    {
+        retValue = mServerPort;
+    }
+    return retValue;
+}
+
+IPAddress Communicator::getBroadcastIP()
+{
+    IPAddress retValue;
+    if(mWiFiNetworkOpen)
+    {
+        retValue = mBroadcastIP;
+    }
+    return retValue;
+
+}
+
+int32_t Communicator::getBroadcastPort()
+{
+    int32_t retValue;
+    if(mCommsSocketOpen)
+    {
+        retValue = mBroadcastPort;
+    }
+    return retValue;
+}
+
+bool Communicator::isServerRunning()
+{
+    return mCommsSocketOpen;
+}
+
+bool Communicator::isNetworkRunning()
+{
+    return mWiFiNetworkOpen;
+}
+
+IPAddress Communicator::getRemoteIP()
+{
+    return mBroadcastServer->remoteIP();
+}
+
+int Communicator::getRemotePort()
+{
+    return mBroadcastServer->remotePort();
+}
+
+QueueHandle_t* Communicator::getReferenceToDataQueue()
+{
+    return mDataQueue;
+}
+
+QueueHandle_t* Communicator::getReferenceToTaskQueue()
+{
+    return mTasksQueue;
 }

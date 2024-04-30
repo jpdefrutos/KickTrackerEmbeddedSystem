@@ -29,13 +29,13 @@ int SensorManager::readSensor(std::vector<int32_t> *returnValue)
 	return -1;
 };
 
-void SensorManager::continuousReading(int durationMs, float freqHz)
+void SensorManager::continuousReading(std::vector<int32_t> *returnValue, int durationMs, float freqHz)
 {
 	time_t startTime, lastIterationTime;
 
 	// std::vector<int32_t> storageArray[mBufferSize];
 	// memset(storageArray, 0, mBufferSize);
-	mBuffer->clear();
+	returnValue->clear();
 	
 	float waitBetweenLoops = 1000 / freqHz;
 	int readSize;
@@ -53,11 +53,11 @@ void SensorManager::continuousReading(int durationMs, float freqHz)
 		else
 		{
 			Serial.println("Loop!!");
-			readSize = readSensor(mBuffer);
+			readSize = readSensor(returnValue);
 			Serial.printf("Received size: %d\n", readSize);
 			for(size_t i=0; i < readSize; i++)
 			{
-				Serial.printf("[%d]\t%.3f\n", i, mBuffer->at(i));
+				Serial.printf("[%d]\t%.3f\n", i, returnValue->at(i));
 			};
 			lastIterationTime = millis();
 		};

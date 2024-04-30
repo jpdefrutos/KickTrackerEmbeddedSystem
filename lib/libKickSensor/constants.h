@@ -10,8 +10,8 @@
 #endif
 #define LED_BUILTIN 48
 
-#define MSG_DELIMITER ';'
-#define PARAM_DELIMITER ':'
+#define MSG_DELIMITER ";"
+#define PARAM_DELIMITER ":"
 
 #define WIFI_SSID "KickSensorWiFi"
 #define WIFI_PSW "KickSensorLibrary"

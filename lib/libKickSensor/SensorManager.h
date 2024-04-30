@@ -20,7 +20,7 @@ public:
 	SensorManager(int address, int bufferSize = 32);
 	void powerUpSensor(const int regAddress, const int value);
 	virtual int readSensor(std::vector<int32_t> *readValue);
-	void continuousReading(int durationMs, float freqHz);
+	void continuousReading(std::vector<int32_t> *readValue, int durationMs, float freqHz);
 	void setAddress(int address);
 	int getAddress(int &address);
 	bool isReady();
